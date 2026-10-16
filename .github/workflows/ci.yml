@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc-arm-none-eabi make
+
+      - name: Show toolchain versions
+        run: |
+          gcc --version
+          arm-none-eabi-gcc --version
+
+      - name: Cross-compile
+        run: make all
+
+      - name: Run host tests
+        run: make test
