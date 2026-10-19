@@ -1,29 +1,30 @@
-CC := arm-none-eabi-gcc
-HOST_CC := gcc
-CFLAGS := -Wall -Wextra -Os -std=c11
-SRC := $(wildcard src/*.c)
+BUILD_DIR ?= build
+STM32CUBE_F4_DIR ?=
 
-TARGET_DIR := build
-TARGET := $(TARGET_DIR)/main.elf
+ifeq ($(OS),Windows_NT)
+CMAKE_GENERATOR ?= MinGW Makefiles
+CMAKE_MAKE_PROGRAM ?= mingw32-make
+CMAKE_GENERATOR_ARGS = -G "$(CMAKE_GENERATOR)" -DCMAKE_MAKE_PROGRAM="$(CMAKE_MAKE_PROGRAM)"
+endif
 
-TEST_SRCS := test/test_led.c src/led.c
-TEST_BIN := $(TARGET_DIR)/test_runner
+.PHONY: all firmware test flash clean
 
-.PHONY: all test clean
+all: firmware
 
-all: $(TARGET)
+firmware:
+	cmake $(CMAKE_GENERATOR_ARGS) -S . -B $(BUILD_DIR)/firmware \
+		-DCMAKE_TOOLCHAIN_FILE=cmake/arm-none-eabi-gcc.cmake \
+		-DSTM32CUBE_F4_DIR="$(STM32CUBE_F4_DIR)" \
+		-DBUILD_FIRMWARE=ON -DBUILD_TESTING=OFF
+	cmake --build $(BUILD_DIR)/firmware --parallel
 
-$(TARGET): $(SRC)
-	mkdir -p $(TARGET_DIR)
-	$(CC) $(CFLAGS) -ffreestanding -fdata-sections -ffunction-sections \
-		-nostdlib -Wl,--gc-sections -Wl,-e,main -o $@ $(SRC)
+test:
+	cmake $(CMAKE_GENERATOR_ARGS) -S . -B $(BUILD_DIR)/host -DBUILD_FIRMWARE=OFF -DBUILD_TESTING=ON
+	cmake --build $(BUILD_DIR)/host --parallel
+	ctest --test-dir $(BUILD_DIR)/host --output-on-failure
 
-test: $(TEST_BIN)
-	./$(TEST_BIN)
-
-$(TEST_BIN): $(TEST_SRCS) src/led.h
-	mkdir -p $(TARGET_DIR)
-	$(HOST_CC) $(CFLAGS) -Isrc -o $@ $(TEST_SRCS)
+flash: firmware
+	STM32_Programmer_CLI -c port=SWD -w $(BUILD_DIR)/firmware/firmware.elf -v -rst
 
 clean:
-	rm -rf $(TARGET_DIR)
+	cmake -E rm -rf $(BUILD_DIR)

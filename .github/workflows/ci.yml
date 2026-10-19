@@ -7,23 +7,48 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      STM32CUBE_F4_DIR: ${{ github.workspace }}/third_party/STM32CubeF4
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install toolchain
+      - name: Checkout STM32CubeF4
+        uses: actions/checkout@v4
+        with:
+          repository: STMicroelectronics/STM32CubeF4
+          ref: v1.28.3
+          path: third_party/STM32CubeF4
+          sparse-checkout: |
+            Drivers
+            Projects/STM32F401RE-Nucleo/Examples/GPIO/GPIO_IOToggle
+
+      - name: Checkout required STM32CubeF4 submodules
+        run: |
+          git -C third_party/STM32CubeF4 submodule update --init --depth 1 \
+            Drivers/CMSIS/Device/ST/STM32F4xx \
+            Drivers/STM32F4xx_HAL_Driver
+
+      - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential gcc-arm-none-eabi make
+          sudo apt-get install -y build-essential cmake gcc-arm-none-eabi libnewlib-arm-none-eabi make
 
-      - name: Show toolchain versions
+      - name: Build firmware for STM32F401RE
         run: |
-          gcc --version
           arm-none-eabi-gcc --version
-
-      - name: Cross-compile
-        run: make all
+          make firmware
 
       - name: Run host tests
         run: make test
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: nucleo-f401re-firmware
+          path: |
+            build/firmware/firmware.elf
+            build/firmware/firmware.map
+            build/firmware/firmware.bin
+            build/firmware/firmware.hex

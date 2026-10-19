@@ -1,11 +1,19 @@
-#include "led.h"
+#include "app.h"
+#include "board.h"
 
-/* Minimal embedded-style application that calls the HAL API. */
+#include "stm32f4xx_hal.h"
+
 int main(void) {
-    led_init();
-    for (int i = 0; i < 10; ++i) {
-        led_toggle();
-        /* A real firmware would wait here and toggle a physical LED. */
+    app_state_t app;
+
+    HAL_Init();
+    board_init();
+    app_init(&app, HAL_GetTick(), board_button_pressed());
+
+    for (;;) {
+        const bool led_on =
+            app_update(&app, HAL_GetTick(), board_button_pressed());
+        board_led_set(led_on);
+        __WFI();
     }
-    return 0;
 }
